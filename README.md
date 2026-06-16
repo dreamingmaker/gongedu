@@ -29,7 +29,7 @@
 
 현재 기관 시범 운영 예정으로, 운영 중 발견되는 문제나 피드백을 반영해 지속적으로 개정할 예정입니다.
 
-이 시스템은 이수증을 다음과 같이 관리합니다.
+**이 시스템은 이수증을 다음과 같이 관리합니다.**
 
 - **교육 담당자**가 교육을 시스템에 등록합니다.<br>
   ![등록 이미지](./.github/assets/03%20add.gif)
@@ -41,6 +41,15 @@
 
 ---
 
+## v0.9.2
+
+**Docker 배포 지원**
+
+서버에 Node.js를 직접 설치하지 않아도 Docker만으로 실행할 수 있도록 배포 방식을 개선했습니다.
+`setup.bat` (Windows) 또는 `setup.sh` (Linux/macOS) 실행 한 번으로 환경 설정부터 컨테이너 실행까지 자동으로 완료됩니다.
+
+---
+
 ## v0.9.1
 
 **교육담당 ZIP 파일명 개선**
@@ -48,186 +57,11 @@
 교육담당 권한으로 이수증을 ZIP으로 다운로드할 때, 파일명이 교육담당자 본인의 부서명으로 고정되던 문제를 수정했습니다.
 이제 이수 현황 화면에서 설정한 필터에 따라 파일명이 자동으로 결정됩니다.
 
-| 필터 상태 | ZIP 파일명 형식 |
-| --------- | --------------- |
-| 모든 부서 (필터 없음) | `교육명_시간.zip` |
-| 특정 부서로 필터 | `[부서명]교육명_시간.zip` |
+| 필터 상태               | ZIP 파일명 형식                |
+| ----------------------- | ------------------------------ |
+| 모든 부서 (필터 없음)   | `교육명_시간.zip`              |
+| 특정 부서로 필터        | `[부서명]교육명_시간.zip`      |
 | 특정 부서 + 팀으로 필터 | `[부서명]팀명_교육명_시간.zip` |
-
----
-
-## ⚡ 설치 방법
-
-**Node.js 18 이상**이 필요합니다.
-
-```bash
-# 저장소 클론
-git clone https://github.com/baenong/gongedu.git
-cd gongedu
-```
-
-**자동 설치 (Windows)**
-
-`setup.bat` 을 더블클릭하면 패키지 설치와 `.env` 파일 생성이 한 번에 완료됩니다.
-
-```
-setup.bat 실행 순서
-
-[1/3] frontend 패키지 설치 (npm install)
-[2/3] backend 패키지 설치 (npm install)
-[3/3] PORT, JWT_SECRET 입력 → backend/.env 자동 생성
-      → 완료 후 start_server.bat 실행 안내
-```
-
-설치 완료 후 `start_server.bat` 을 실행하면 서버가 시작됩니다.
-
-**자동 설치 (Linux)**
-
-```bash
-chmod +x setup.sh
-./setup.sh
-```
-
-```
-setup.sh 실행 순서
-
-[1/3] frontend 패키지 설치 (npm install)
-[2/3] backend 패키지 설치 (npm install)
-[3/3] PORT, JWT_SECRET 입력 → backend/.env 자동 생성
-```
-
-설치 완료 후 아래 명령어로 서버를 시작합니다.
-
-```bash
-# 백엔드 실행
-cd backend && npm start
-
-# 프론트엔드 빌드 (nginx 등 웹서버로 서빙)
-cd frontend && npm run build
-```
-
-> **⚠️ `start_server.bat` 실행 전 확인**
->
-> `start_server.bat` 안에는 nginx 경로가 아래와 같이 하드코딩되어 있습니다.
->
-> ```bat
-> cd .. && cd nginx-1.29.4 && start nginx
-> ```
->
-> 사용 환경에 따라 이 줄을 직접 수정해야 합니다.
->
-> | 상황                               | 수정 방법                                  |
-> | ---------------------------------- | ------------------------------------------ |
-> | nginx 폴더명이 다를 때             | `nginx-1.29.4` 부분을 실제 폴더명으로 변경 |
-> | nginx가 다른 경로에 있을 때        | 해당 절대 경로로 변경                      |
-> | nginx 대신 다른 웹서버를 사용할 때 | 해당 줄을 웹서버 실행 명령으로 교체        |
->
-> 프론트엔드 빌드 결과물(`frontend/dist/`)을 웹서버가 서빙할 수 있도록 웹서버 설정도 함께 확인하세요.
-
-> **⚠️ 포트 변경 시 추가 수정 필요**
->
-> `setup.bat` 에서 기본값(8180)과 다른 백엔드 포트를 입력했다면, 아래 두 곳을 추가로 수정해야 합니다.
->
-> **1. 개발 서버 프록시 설정** — `frontend/vite.config.ts`
->
-> ```ts
-> proxy: {
->   "/api": {
->     target: "http://localhost:8180",  // ← 설정한 포트로 변경
->   },
-> },
-> ```
->
-> **2. 웹서버(nginx 등) 프록시 설정** — nginx의 경우 `nginx.conf`
->
-> ```nginx
-> location /api/ {
->     proxy_pass http://localhost:8180/api/;  # ← 설정한 포트로 변경
-> }
-> ```
->
-> 프론트엔드 개발 서버 포트(`frontend/vite.config.ts`의 `server.port`, 기본값 `2256`)를 변경한 경우에도 nginx에서 해당 포트로 정적 파일을 서빙하도록 설정을 맞춰야 합니다.
-
-<details>
-<summary>수동 설치 방법</summary>
-
-**프론트엔드 패키지 설치**
-
-```bash
-cd frontend
-npm install
-npm run dev      # 개발 서버: http://localhost:2256
-```
-
-운영 환경 빌드 후 `frontend/dist/` 를 nginx 등으로 서빙합니다:
-
-```bash
-npm run build
-```
-
-**백엔드 패키지 설치**
-
-```bash
-cd backend
-npm install
-```
-
-`backend/.env` 파일을 직접 생성합니다:
-
-```env
-PORT=8180
-JWT_SECRET=your_jwt_secret_key
-```
-
-```bash
-npm start        # 운영 모드
-npm run dev      # 개발 모드 (nodemon 자동 재시작)
-```
-
-</details>
-
-### 최초 접속 및 계정 설정
-
-서버 실행 후 **서버 PC에서** 아래 계정으로 로그인합니다.
-
-| 항목 | 값            |
-| ---- | ------------- |
-| ID   | `geadmin`     |
-| PW   | `GongEdu!234` |
-
-> **⚠️ `geadmin` 계정은 서버 PC(localhost)에서만 로그인할 수 있습니다.**
-> 보안상 외부에서의 접근이 차단되어 있습니다.
-
-로그인 후 **직원 관리** 메뉴에서 `총괄담당` 권한의 운영 계정을 생성하세요.
-이후 일상적인 관리는 해당 계정으로 합니다.
-
-> **⚠️ `geadmin` 초기 비밀번호는 소스코드에 공개되어 있으므로 반드시 변경하세요.**
-
----
-
-## 커스터마이징
-
-### 로고 변경
-
-`frontend/public/` 안의 SVG 파일 두 개를 교체하면 됩니다.
-
-| 파일                             | 용도               |
-| -------------------------------- | ------------------ |
-| `frontend/public/logo.svg`       | 라이트 모드용 로고 |
-| `frontend/public/logo-white.svg` | 다크 모드용 로고   |
-
-교체 후 `npm run build` 로 다시 빌드하면 반영됩니다.
-
----
-
-## 기술 스택
-
-| 구분     | 기술                                                |
-| -------- | --------------------------------------------------- |
-| Frontend | React 19, TypeScript, Vite 7, Tailwind CSS v4       |
-| Backend  | Node.js, Express v5, better-sqlite3                 |
-| 인증     | JWT, bcryptjs, IP 화이트리스트                      |
-| 기타     | archiver (ZIP 생성), exceljs (엑셀 내보내기), nginx |
 
 ---
 
@@ -339,12 +173,87 @@ npm run dev      # 개발 모드 (nodemon 자동 재시작)
 
 ---
 
-## 만든 사람
+## ⚡ 설치 방법
 
-수료증을 냈는지 안 냈는지 기억하는게 힘들었던 군산시 공무원.
+**[Docker](https://docs.docker.com/get-started/get-docker/)** 가 필요합니다. 설치되어 있지 않다면 링크에서 먼저 설치하세요.
+
+```bash
+git clone https://github.com/baenong/gongedu.git
+cd gongedu
+```
+
+**Windows** — `setup.bat` 더블클릭
+
+**Linux / macOS**
+
+```bash
+chmod +x setup.sh
+./setup.sh
+```
+
+```
+setup 실행 순서
+
+[1/3] PORT, JWT_SECRET 입력 → backend/.env 자동 생성
+[2/3] DB 파일 초기화 (education.db)
+[3/3] docker compose up -d --build → 컨테이너 빌드 및 실행
+```
+
+완료 후 브라우저에서 `http://서버IP` 로 접속합니다. (기본 포트: 80)
+
+> **포트를 변경하려면** `docker-compose.yml`의 `"80:80"` 중 앞쪽 숫자를 원하는 포트로 수정하세요.
+
+**컨테이너 관리**
+
+```bash
+docker compose down            # 종료
+docker compose logs -f         # 로그 확인
+docker compose up -d --build   # 업데이트 후 재빌드
+```
+
+데이터(DB, 수료증 파일)는 `backend/education.db`, `backend/uploads/`에 보관되므로 컨테이너를 삭제해도 유지됩니다.
 
 ---
 
-## 라이선스
+### 최초 접속 및 계정 설정
 
-[MIT](./LICENSE)
+서버 실행 후 **서버 PC에서** 아래 계정으로 로그인합니다.
+
+| 항목 | 값            |
+| ---- | ------------- |
+| ID   | `geadmin`     |
+| PW   | `GongEdu!234` |
+
+> **⚠️ `geadmin` 계정은 서버 PC(localhost)에서만 로그인할 수 있습니다.**
+> 보안상 외부에서의 접근이 차단되어 있습니다.
+
+로그인 후 **직원 관리** 메뉴에서 `총괄담당` 권한의 운영 계정을 생성하세요.
+이후 일상적인 관리는 해당 계정으로 합니다.
+
+> **⚠️ `geadmin` 초기 비밀번호는 소스코드에 공개되어 있으므로 반드시 변경하세요.**
+
+---
+
+## 커스터마이징
+
+### 로고 변경
+
+`frontend/public/` 안의 SVG 파일 두 개를 교체하면 됩니다.
+
+| 파일                             | 용도               |
+| -------------------------------- | ------------------ |
+| `frontend/public/logo.svg`       | 라이트 모드용 로고 |
+| `frontend/public/logo-white.svg` | 다크 모드용 로고   |
+
+교체 후 `docker compose up -d --build` 로 컨테이너를 재빌드하면 반영됩니다.
+
+---
+
+## 기술 스택
+
+| 구분     | 기술                                                |
+| -------- | --------------------------------------------------- |
+| Frontend | React 19, TypeScript, Vite 7, Tailwind CSS v4       |
+| Backend  | Node.js, Express v5, better-sqlite3                 |
+| 인증     | JWT, bcryptjs, IP 화이트리스트                      |
+| 기타     | archiver (ZIP 생성), exceljs (엑셀 내보내기), nginx |
