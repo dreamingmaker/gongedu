@@ -1,0 +1,196 @@
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import express from "express";
+import db from "../database.js";
+import {
+  authenticateToken,
+  requireAdmin,
+} from "../middlewares/authMiddleware.js";
+import { roles } from "../../constants.js";
+
+const router = express.Router();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const uploadDir = path.join(__dirname, "../../uploads");
+
+// 교육 과정 목록 조회 : arguments는 조회 연도 추가(확장성 고려)
+// GET /api/courses
+// ?year=2025
+router.get("/", authenticateToken, (req, res) => {
+  try {
+    const { year } = req.query;
+    const { role, departmentId, teamId, id: userId } = req.user;
+
+    let userCondition = `u.role < ${roles["교육담당"]}`;
+    let enrollmentCondition = `u.role < ${roles["교육담당"]}`;
+
+    // 파라미터 배열
+    let params = [];
+
+    if (role === roles["교육담당"]) {
+      params.push(userId, userId);
+    }
+
+    if (role === roles["부서담당"]) {
+      userCondition += " AND u.department_id = ?";
+      enrollmentCondition += " AND u.department_id = ?";
+      params.push(departmentId, departmentId);
+    }
+
+    if (role === roles["팀계담당"]) {
+      userCondition += " AND u.team_id = ?";
+      enrollmentCondition += " AND u.team_id = ?";
+      params.push(teamId, teamId);
+    }
+
+    let query = `
+      SELECT 
+        c.*,
+        -- 1. 전체 대상 인원
+        (SELECT COUNT(*) FROM users u WHERE ${userCondition}) as total_count,
+        -- 2. 제출 완료 인원
+        (SELECT COUNT(*) 
+         FROM enrollments e 
+         JOIN users u ON e.user_id = u.id 
+         WHERE e.course_id = c.id AND e.state = 2 AND ${enrollmentCondition}
+        ) as submitted_count
+      FROM courses c
+    `;
+
+    // 교육담당(4) — 소유 여부에 따라 분기
+    if (role === roles["교육담당"]) {
+      query = `
+      SELECT c.*,
+        CASE WHEN c.created_by = ?
+          THEN (SELECT COUNT(*) FROM users u WHERE u.role < ${roles["교육담당"]})
+          ELSE NULL
+        END as total_count,
+        CASE WHEN c.created_by = ?
+          THEN (SELECT COUNT(*) FROM enrollments e
+                JOIN users u ON e.user_id = u.id
+                WHERE e.course_id = c.id AND e.state = 2
+                  AND u.role < ${roles["교육담당"]})
+          ELSE NULL
+        END as submitted_count
+      FROM courses c
+    `;
+    }
+
+    // 연도가 지정되면 해당 연도만 조회, 없으면 전체 조회 (또는 현재 연도)
+    if (year) {
+      query += " WHERE c.year = ?";
+      params.push(year);
+    }
+
+    query += " ORDER BY end_date ASC"; // 마감일 순 정렬
+
+    const courses = db.prepare(query).all(...params);
+    res.json(courses);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// (관리자용) 교육 과정 등록
+// POST /api/courses
+router.post("/", authenticateToken, requireAdmin, (req, res) => {
+  const { year, name, end_date, detail } = req.body;
+
+  try {
+    const stmt = db.prepare(`
+      INSERT INTO courses (year, name, end_date, detail, created_by)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+    const result = stmt.run(year, name, end_date, detail, req.user.id);
+
+    res.status(201).json({
+      message: "교육 과정이 등록되었습니다.",
+      id: result.lastInsertRowid,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// (관리자용) 교육 과정 삭제
+// DELETE /api/courses/:id
+router.delete("/:id", authenticateToken, requireAdmin, (req, res) => {
+  try {
+    const { id } = req.params;
+    const course = db.prepare("SELECT * FROM courses WHERE id = ?").get(id);
+
+    if (!course) {
+      return res.status(404).json({ message: "교육 과정을 찾을 수 없습니다." });
+    }
+
+    // 교육담당은 본인 소유만 삭제 가능
+    if (
+      req.user.role === roles["교육담당"] &&
+      course.created_by !== req.user.id
+    ) {
+      return res
+        .status(403)
+        .json({ message: "본인이 등록한 교육과정만 삭제할 수 있습니다." });
+    }
+
+    const files = db
+      .prepare("SELECT stored_file_name FROM enrollments WHERE course_id = ?")
+      .all(id);
+
+    files.forEach((file) => {
+      if (file.stored_file_name) {
+        const filePath = path.join(uploadDir, file.stored_file_name);
+        try {
+          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        } catch (e) {
+          console.error(`파일 삭제 실패: ${file.stored_file_name}`, e);
+        }
+      }
+    });
+
+    db.prepare("DELETE FROM courses WHERE id = ?").run(id);
+
+    res.json({ message: "교육 과정이 삭제되었습니다." });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// (관리자용) 교육 과정 변경
+// PUT /api/courses/:id
+router.put("/:id", authenticateToken, requireAdmin, (req, res) => {
+  const { id } = req.params;
+  const { end_date, detail } = req.body;
+
+  try {
+    const course = db.prepare("SELECT * FROM courses WHERE id = ?").get(id);
+
+    // 교육과정이 없다면 에러
+    if (!course) {
+      return res.status(404).json({ message: "교육과정을 찾을 수 없습니다." });
+    }
+
+    // 교육담당이라면 본인이 만든 교육과정만 수정가능
+    if (
+      req.user.role === roles["교육담당"] &&
+      course.created_by !== req.user.id
+    ) {
+      return res
+        .status(403)
+        .json({ message: "본인이 등록한 교육과정만 수정할 수 있습니다." });
+    }
+
+    const stmt = db.prepare(
+      "UPDATE courses SET end_date = ?, detail = ? WHERE id = ?",
+    );
+    stmt.run(end_date, detail, id);
+
+    res.json({ message: "교육과정 정보가 수정되었습니다." });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+export default router;
