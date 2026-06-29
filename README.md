@@ -5,7 +5,8 @@
 <h1 align="center">GongEdu</h1>
 
 <p align="center">
-  <strong>공무원 필수교육, 이제 한 곳에서 관리합니다.</strong>
+  <img src="./.github/assets/logo-white.svg" width="256"><br>
+  <br><strong>공무원 필수교육, 이제 한 곳에서 관리합니다.</strong>
   <br>각 직원이 이수증을 올리고, 담당자는 한 눈에 이수 현황을 파악할 수 있습니다.
   <br><br> - 전북특별자치도 군산시 행정지원과 안민수 -
 </p>
@@ -58,8 +59,6 @@
 | 도입 후 | 약 5분/부서     | **100시간** (5분 × 15교육 × 80부서)    |
 
 > 비슷한 규모의 기관이라면 **연간 약 1,100시간**을 절감할 수 있을 것으로 기대됩니다.
-
----
 
 ---
 
@@ -289,27 +288,60 @@ PuTTY 창은 SSH 연결 유지를 위해 열어 두어야 합니다.
 
 ---
 
-## v0.9.2
+## 트러블슈팅
 
-**Docker 배포 지원**
+### Docker 빌드 중 `npm ci` 실패 (사내망 프록시 환경)
 
-서버에 Node.js를 직접 설치하지 않아도 Docker만으로 실행할 수 있도록 배포 방식을 개선했습니다.
-`setup.bat` (Windows) 또는 `setup.sh` (Linux/macOS) 실행 한 번으로 환경 설정부터 컨테이너 실행까지 자동으로 완료됩니다.
+사내 프록시 환경에서 `docker compose up --build` 실행 시 npm 패키지 다운로드에 실패하는 경우가 있습니다.
 
-**SSH 터널을 통한 초기 설정 지원**
+**증상**
 
-PuTTY 등 SSH 클라이언트로 서버에 원격 접속하는 환경에서도 `geadmin` 계정으로 로그인할 수 있도록 개선했습니다.
-SSH 로컬 포트 포워딩을 설정하면 관리자 PC의 브라우저에서 서버 localhost로 접속할 수 있습니다. 자세한 내용은 [최초 접속 및 계정 설정](#최초-접속-및-계정-설정) 참고.
+```
+npm error code ECONNREFUSED
+npm error errno ECONNREFUSED
+```
 
-## v0.9.1
+**원인**
 
-**교육담당 ZIP 파일명 개선**
+Docker 빌드 컨텍스트는 호스트의 프록시 설정을 자동으로 상속하지 않아, 컨테이너 내부에서 외부 npm 레지스트리에 접근하지 못합니다.
 
-교육담당 권한으로 이수증을 ZIP으로 다운로드할 때, 파일명이 교육담당자 본인의 부서명으로 고정되던 문제를 수정했습니다.
-이제 이수 현황 화면에서 설정한 필터에 따라 파일명이 자동으로 결정됩니다.
+**해결 방법**
 
-| 필터 상태               | ZIP 파일명 형식                |
-| ----------------------- | ------------------------------ |
-| 모든 부서 (필터 없음)   | `교육명_시간.zip`              |
-| 특정 부서로 필터        | `[부서명]교육명_시간.zip`      |
-| 특정 부서 + 팀으로 필터 | `[부서명]팀명_교육명_시간.zip` |
+`docker-compose.yml`의 각 서비스에 `build.args`로 프록시를 전달합니다.
+
+```yaml
+services:
+  backend:
+    build:
+      context: ./backend
+      args:
+        - HTTP_PROXY=http://프록시주소:포트
+        - HTTPS_PROXY=http://프록시주소:포트
+        - NO_PROXY=localhost,127.0.0.1
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        - HTTP_PROXY=http://프록시주소:포트
+        - HTTPS_PROXY=http://프록시주소:포트
+        - NO_PROXY=localhost,127.0.0.1
+```
+
+또는 빌드 시 `--build-arg`로 직접 전달할 수 있습니다.
+
+```bash
+docker compose build \
+  --build-arg HTTP_PROXY=http://프록시주소:포트 \
+  --build-arg HTTPS_PROXY=http://프록시주소:포트
+```
+
+---
+
+## 라이선스
+
+[MIT License](./LICENSE)
+
+---
+
+> 버전 히스토리는 [CHANGELOG.md](./CHANGELOG.md)를 참고하세요.
