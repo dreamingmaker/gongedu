@@ -203,10 +203,18 @@ chmod +x setup.sh
 ```
 setup 실행 순서
 
-[1/3] PORT, JWT_SECRET 입력 → backend/.env 자동 생성
-[2/3] DB 파일 초기화 (education.db)
-[3/3] docker compose up -d --build → 컨테이너 빌드 및 실행
+[1/4] JWT_SECRET 입력 → backend/.env 자동 생성
+[2/4] DB 디렉토리 초기화
+[3/4] 프론트엔드 배포 방식 선택 (아래 참고)
+[4/4] 컨테이너 실행
 ```
+
+**프론트엔드 배포 방식**
+
+| 선택 | 방식 | 설명 |
+| ---- | ---- | ---- |
+| 1 (권장) | 미리 빌드된 이미지 | GitHub에서 완성된 이미지를 받아 실행. npm 불필요 |
+| 2 | 직접 빌드 | 소스를 수정했거나 커스터마이징한 경우 로컬에서 빌드 |
 
 완료 후 브라우저에서 `http://서버IP` 로 접속합니다. (기본 포트: 80)
 
@@ -215,9 +223,14 @@ setup 실행 순서
 **컨테이너 관리**
 
 ```bash
-docker compose down            # 종료
-docker compose logs -f         # 로그 확인
-docker compose up -d --build   # 업데이트 후 재빌드
+docker compose down                    # 종료
+docker compose logs -f                 # 로그 확인
+
+# 미리 빌드된 이미지로 업데이트
+docker compose pull && docker compose up -d
+
+# 직접 빌드로 업데이트 (커스터마이징한 경우)
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
 
 데이터(DB, 수료증 파일)는 `backend/data/`, `backend/uploads/`에 보관되므로 컨테이너를 삭제해도 유지됩니다.
@@ -264,6 +277,12 @@ PuTTY 창은 SSH 연결 유지를 위해 열어 두어야 합니다.
 
 ## 커스터마이징
 
+> 소스를 수정한 경우 **직접 빌드** 방식으로 실행해야 합니다.
+>
+> ```bash
+> docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+> ```
+
 ### 로고 변경
 
 `frontend/public/` 안의 SVG 파일 두 개를 교체하면 됩니다.
@@ -273,7 +292,7 @@ PuTTY 창은 SSH 연결 유지를 위해 열어 두어야 합니다.
 | `frontend/public/logo.svg`       | 라이트 모드용 로고 |
 | `frontend/public/logo-white.svg` | 다크 모드용 로고   |
 
-교체 후 `docker compose up -d --build` 로 컨테이너를 재빌드하면 반영됩니다.
+교체 후 위의 직접 빌드 명령으로 컨테이너를 재빌드하면 반영됩니다.
 
 ---
 

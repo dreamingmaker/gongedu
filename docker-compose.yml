@@ -10,7 +10,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    build: ./frontend
+    image: ghcr.io/baenong/gongedu-frontend:latest
     ports:
       - "80:80"
     depends_on:
