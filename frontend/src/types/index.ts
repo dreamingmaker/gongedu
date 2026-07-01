@@ -30,6 +30,9 @@ export interface Enrollment {
   state: number; // 1:미제출, 2:제출완료
   file_name?: string;
   submitted_at?: string;
+  extracted_course_name?: string;
+  extracted_course_date?: string;
+  extraction_error?: string;
   course_name?: string; // 조인해서 가져올 때 사용
   end_date?: string;
 }

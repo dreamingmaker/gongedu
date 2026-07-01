@@ -5,6 +5,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 FROM node:22-alpine
+RUN apk add --no-cache poppler-utils
 WORKDIR /app
 COPY --from=builder /app/node_modules ./node_modules
 COPY package.json .

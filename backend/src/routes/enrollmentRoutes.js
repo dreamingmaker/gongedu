@@ -10,6 +10,7 @@ import {
   requireAdmin,
 } from "../middlewares/authMiddleware.js";
 import { getFormattedTime, getCurrentKST } from "../utils/formatHelper.js";
+import { analyzeCertificate } from "../utils/certificateExtractor.js";
 import { roles } from "../../constants.js";
 
 const router = express.Router();
@@ -122,7 +123,7 @@ router.post(
   "/:courseId",
   authenticateToken,
   upload.single("file"),
-  (req, res) => {
+  async (req, res) => {
     if (!req.file) return res.status(400).json({ message: "파일이 없습니다." });
 
     const { courseId } = req.params;
@@ -166,6 +167,20 @@ router.post(
       fs.renameSync(tempPath, finalPath);
       renamedToFinal = true;
       const submittedAt = getCurrentKST();
+
+      let analysis = {
+        certificateText: "",
+        courseName: "",
+        courseDate: "",
+        error: "",
+      };
+      try {
+        analysis = await analyzeCertificate(finalPath, ext);
+      } catch (analysisError) {
+        analysis.error = analysisError.message;
+        console.error("수료증 분석 실패:", analysisError);
+      }
+
       const existing = db
         .prepare(
           "SELECT id, stored_file_name FROM enrollments WHERE user_id = ? AND course_id = ?",
@@ -189,16 +204,53 @@ router.post(
 
         const update = db.prepare(`
         UPDATE enrollments 
-        SET state = 2, file_name = ?, stored_file_name = ?, submitted_at = ?
+        SET state = 2,
+            file_name = ?,
+            stored_file_name = ?,
+            certificate_text = ?,
+            extracted_course_name = ?,
+            extracted_course_date = ?,
+            extraction_error = ?,
+            submitted_at = ?
         WHERE id = ?
       `);
-        update.run(finalFileName, finalFileName, submittedAt, existing.id);
+        update.run(
+          finalFileName,
+          finalFileName,
+          analysis.certificateText,
+          analysis.courseName,
+          analysis.courseDate,
+          analysis.error,
+          submittedAt,
+          existing.id,
+        );
       } else {
         const insert = db.prepare(`
-        INSERT INTO enrollments (user_id, course_id, state, file_name, stored_file_name, submitted_at)
-        VALUES (?, ?, 2, ?, ?, ?)
+        INSERT INTO enrollments (
+          user_id,
+          course_id,
+          state,
+          file_name,
+          stored_file_name,
+          certificate_text,
+          extracted_course_name,
+          extracted_course_date,
+          extraction_error,
+          submitted_at
+        )
+        VALUES (?, ?, 2, ?, ?, ?, ?, ?, ?, ?)
       `);
-        insert.run(userId, courseId, finalFileName, finalFileName, submittedAt);
+        insert.run(
+          userId,
+          courseId,
+          finalFileName,
+          finalFileName,
+          analysis.certificateText,
+          analysis.courseName,
+          analysis.courseDate,
+          analysis.error,
+          submittedAt,
+        );
       }
 
       res.json({ message: "수료증이 제출되었습니다." });
@@ -225,7 +277,8 @@ router.get(
 
       let query = `
       SELECT c.id as course_id, c.name as course_name, c.end_date,
-             e.state, e.submitted_at, e.file_name
+             e.state, e.submitted_at, e.file_name,
+             e.extracted_course_name, e.extracted_course_date
       FROM courses c
       LEFT JOIN enrollments e ON c.id = e.course_id AND e.user_id = ?
     `;
@@ -390,7 +443,8 @@ router.get("/my/:courseId", authenticateToken, (req, res) => {
     const myEnrollment = db
       .prepare(
         `
-        SELECT e.id as enrollment_id, e.state, e.submitted_at, e.file_name, e.stored_file_name
+        SELECT e.id as enrollment_id, e.state, e.submitted_at, e.file_name, e.stored_file_name,
+               e.extracted_course_name, e.extracted_course_date, e.extraction_error
         FROM enrollments e
         WHERE e.course_id = ? AND e.user_id = ? 
       `,
@@ -449,7 +503,8 @@ router.get("/course/:courseId", authenticateToken, (req, res) => {
       SELECT u.id as user_id, u.name,
              u.department, u.department_id as departmentId, 
              u.team, u.team_id as teamId,
-             e.id as enrollment_id, e.state, e.submitted_at, e.file_name, e.stored_file_name
+             e.id as enrollment_id, e.state, e.submitted_at, e.file_name, e.stored_file_name,
+             e.extracted_course_name, e.extracted_course_date, e.extraction_error
       FROM users u
       LEFT JOIN enrollments e ON u.id = e.user_id AND e.course_id = ? 
       WHERE u.role < ${roles["시스템관리자"]}

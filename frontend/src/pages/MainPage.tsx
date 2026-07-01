@@ -27,6 +27,9 @@ interface UserStatus {
   submitted_at: string | null;
   file_name: string | null;
   stored_file_name: string | null;
+  extracted_course_name: string | null;
+  extracted_course_date: string | null;
+  extraction_error: string | null;
 }
 
 const MainPage = () => {
@@ -330,8 +333,8 @@ const MainPage = () => {
     if (!selectedCourse) return;
 
     const headers = isSuperAdmin
-      ? ["이름", "부서", "팀(계)", "이수여부", "제출일"]
-      : ["이름", "팀(계)", "이수여부", "제출일"];
+      ? ["이름", "부서", "팀(계)", "이수여부", "강의명", "강의날짜", "제출일"]
+      : ["이름", "팀(계)", "이수여부", "강의명", "강의날짜", "제출일"];
 
     const rows = filteredStatusList.map((status) => {
       const base = isSuperAdmin
@@ -340,6 +343,8 @@ const MainPage = () => {
       return [
         ...base,
         status.state === 2 ? "이수완료" : "미이수",
+        status.extracted_course_name || "-",
+        status.extracted_course_date || "-",
         status.submitted_at ? status.submitted_at.split(" ")[0] : "-",
       ];
     });
@@ -874,6 +879,8 @@ const MainPage = () => {
                         {isSuperAdmin && <TableHeader>부서</TableHeader>}
                         <TableHeader>팀(계)</TableHeader>
                         <TableHeader>상태</TableHeader>
+                        <TableHeader>강의명</TableHeader>
+                        <TableHeader>강의날짜</TableHeader>
                         <TableHeader>제출일 / 파일</TableHeader>
                       </tr>
                     </thead>
@@ -897,6 +904,12 @@ const MainPage = () => {
                             </td>
                             <td className="px-4 py-3 text-center">
                               <Badge isDone={status.state === 2} />
+                            </td>
+                            <td className="px-4 py-3 text-base text-center text-gray-500 dark:text-gray-400">
+                              {status.extracted_course_name || "-"}
+                            </td>
+                            <td className="px-4 py-3 text-base text-center text-gray-500 dark:text-gray-400">
+                              {status.extracted_course_date || "-"}
                             </td>
                             <td className="px-4 py-3 text-left text-base">
                               {status.state === 2 && status.enrollment_id ? (

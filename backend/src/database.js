@@ -63,6 +63,10 @@ export function initDatabase() {
       state INTEGER DEFAULT 1,
       file_name TEXT,
       stored_file_name TEXT,
+      certificate_text TEXT,
+      extracted_course_name TEXT,
+      extracted_course_date TEXT,
+      extraction_error TEXT,
       submitted_at DATETIME,
       FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
       FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE
@@ -148,7 +152,19 @@ export function initDatabase() {
 }
 
 function migrateDatabase() {
-  // DB를 마이그레이션해야할 경우 여기에 추가
+  const columns = db.prepare("PRAGMA table_info(enrollments)").all();
+  const columnNames = new Set(columns.map((column) => column.name));
+
+  const addColumn = (name, definition) => {
+    if (!columnNames.has(name)) {
+      db.prepare(`ALTER TABLE enrollments ADD COLUMN ${name} ${definition}`).run();
+    }
+  };
+
+  addColumn("certificate_text", "TEXT");
+  addColumn("extracted_course_name", "TEXT");
+  addColumn("extracted_course_date", "TEXT");
+  addColumn("extraction_error", "TEXT");
 }
 
 export default db;
