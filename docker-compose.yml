@@ -17,7 +17,7 @@ services:
   frontend:
     image: ghcr.io/baenong/gongedu-frontend:latest
     ports:
-      - "80:80"
+      - "3396:80"
     depends_on:
       - backend
     restart: unless-stopped
